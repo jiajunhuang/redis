@@ -2158,7 +2158,9 @@ void readQueryFromClient(connection *conn) {
 
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
+    // 准备空间
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    // 读取
     nread = connRead(c->conn, c->querybuf+qblen, readlen);
     if (nread == -1) {
         if (connGetState(conn) == CONN_STATE_CONNECTED) {
@@ -2173,6 +2175,7 @@ void readQueryFromClient(connection *conn) {
         freeClientAsync(c);
         return;
     } else if (c->flags & CLIENT_MASTER) {
+        // 如果读到了，并且是master的话
         /* Append the query buffer to the pending (not applied) buffer
          * of the master. We'll use this buffer later in order to have a
          * copy of the string applied by the last command executed. */

@@ -406,9 +406,8 @@ static dictEntry *dictGenericDelete(dict *d, const void *key, int nofree) {
                 else
                     d->ht[table].table[idx] = he->next;
                 if (!nofree) {
-                    dictFreeKey(d, he);
-                    dictFreeVal(d, he);
-                    zfree(he);
+                    // avoid duplicate code
+                    dictFreeUnlinkedEntry(d, he);
                 }
                 d->ht[table].used--;
                 return he;
