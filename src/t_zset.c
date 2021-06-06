@@ -139,14 +139,15 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
-        while (x->level[i].forward &&
-                (x->level[i].forward->score < score ||
-                    (x->level[i].forward->score == score &&
+        while (x->level[i].forward && // 有下一个元素
+                (x->level[i].forward->score < score /* 下一个元素的分数比目标分数更小 */ ||
+                    (/* 分数相同，元素更小 */ x->level[i].forward->score == score &&
                     sdscmp(x->level[i].forward->ele,ele) < 0)))
         {
             rank[i] += x->level[i].span;
             x = x->level[i].forward;
         }
+        // 把要更新的节点追加进来
         update[i] = x;
     }
     /* we assume the element is not already inside, since we allow duplicated
@@ -162,9 +163,12 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         }
         zsl->level = level;
     }
+    // 创建节点
     x = zslCreateNode(level,score,ele);
     for (i = 0; i < level; i++) {
+        // 插入节点，复制update中节点的前进指针为新节点的前进指针
         x->level[i].forward = update[i]->level[i].forward;
+        // 把update中节点的前进指针换成该节点
         update[i]->level[i].forward = x;
 
         /* update span covered by update[i] as x is inserted here */
@@ -177,6 +181,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         update[i]->level[i].span++;
     }
 
+    // 设置回退指针
     x->backward = (update[0] == zsl->header) ? NULL : update[0];
     if (x->level[0].forward)
         x->level[0].forward->backward = x;
@@ -192,9 +197,11 @@ void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     int i;
     for (i = 0; i < zsl->level; i++) {
         if (update[i]->level[i].forward == x) {
+            // 如果下一个节点是x，那么修改下一跳指针
             update[i]->level[i].span += x->level[i].span - 1;
             update[i]->level[i].forward = x->level[i].forward;
         } else {
+            // 如果下一个不是节点不是x，那么把跳过的节点数量-1就可以
             update[i]->level[i].span -= 1;
         }
     }
@@ -227,8 +234,10 @@ int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
                     (x->level[i].forward->score == score &&
                      sdscmp(x->level[i].forward->ele,ele) < 0)))
         {
+            // 向每一层前进
             x = x->level[i].forward;
         }
+        // 追加到要更新的节点
         update[i] = x;
     }
     /* We may have multiple elements with the same score, what we need
@@ -1390,6 +1399,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
 
         de = dictFind(zs->dict,ele);
         if (de != NULL) {
+            // 已经存在
             /* NX? Return, same element already exists. */
             if (nx) {
                 *out_flags |= ZADD_OUT_NOP;
@@ -1426,6 +1436,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
             }
             return 1;
         } else if (!xx) {
+            // 不存在，插入
             ele = sdsdup(ele);
             znode = zslInsert(zs->zsl,score,ele);
             serverAssert(dictAdd(zs->dict,ele,&znode->score) == DICT_OK);
@@ -1777,6 +1788,7 @@ void zaddGenericCommand(client *c, int flags) {
      * before executing additions to the sorted set, as the command should
      * either execute fully or nothing at all. */
     scores = zmalloc(sizeof(double)*elements);
+    // 解析出所有的分数
     for (j = 0; j < elements; j++) {
         if (getDoubleFromObjectOrReply(c,c->argv[scoreidx+j*2],&scores[j],NULL)
             != C_OK) goto cleanup;
@@ -1790,8 +1802,10 @@ void zaddGenericCommand(client *c, int flags) {
         if (server.zset_max_ziplist_entries == 0 ||
             server.zset_max_ziplist_value < sdslen(c->argv[scoreidx+1]->ptr))
         {
+            // 满足条件就使用zset版本
             zobj = createZsetObject();
         } else {
+            // 如果不满足判断条件，就创建ziplist来保存
             zobj = createZsetZiplistObject();
         }
         dbAdd(c->db,key,zobj);
@@ -1803,6 +1817,7 @@ void zaddGenericCommand(client *c, int flags) {
         int retflags = 0;
 
         ele = c->argv[scoreidx+1+j*2]->ptr;
+        // 添加元素
         int retval = zsetAdd(zobj, score, ele, flags, &retflags, &newscore);
         if (retval == 0) {
             addReplyError(c,nanerr);
