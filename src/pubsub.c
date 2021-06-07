@@ -138,10 +138,12 @@ int pubsubSubscribeChannel(client *c, robj *channel) {
     int retval = 0;
 
     /* Add the channel to the client -> channels hash table */
+    // client存储了自己订阅了哪些channel
     if (dictAdd(c->pubsub_channels,channel,NULL) == DICT_OK) {
         retval = 1;
         incrRefCount(channel);
         /* Add the client to the channel -> list of clients hash table */
+        // 服务端存储了channel和客户端列表的对应关系
         de = dictFind(server.pubsub_channels,channel);
         if (de == NULL) {
             clients = listCreate();
@@ -196,11 +198,13 @@ int pubsubSubscribePattern(client *c, robj *pattern) {
     list *clients;
     int retval = 0;
 
+    // 客户端存储了当前订阅的模糊匹配的规则
     if (listSearchKey(c->pubsub_patterns,pattern) == NULL) {
         retval = 1;
         listAddNodeTail(c->pubsub_patterns,pattern);
         incrRefCount(pattern);
         /* Add the client to the pattern -> list of clients hash table */
+        // 服务端同样存储了模糊匹配规则对应客户端列表的关系
         de = dictFind(server.pubsub_patterns,pattern);
         if (de == NULL) {
             clients = listCreate();
@@ -293,6 +297,7 @@ int pubsubPublishMessage(robj *channel, robj *message) {
     listIter li;
 
     /* Send to clients listening for that channel */
+    // 找到精确匹配的客户端，然后逐个下发消息
     de = dictFind(server.pubsub_channels,channel);
     if (de) {
         list *list = dictGetVal(de);
@@ -307,6 +312,7 @@ int pubsubPublishMessage(robj *channel, robj *message) {
         }
     }
     /* Send to clients listening to matching channels */
+    // 找到模糊匹配的客户端，然后逐个下发消息
     di = dictGetIterator(server.pubsub_patterns);
     if (di) {
         channel = getDecodedObject(channel);
